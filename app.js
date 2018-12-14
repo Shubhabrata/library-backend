@@ -65,8 +65,10 @@ app.get("/listBook", (request, response) => {
   connection.connect(error => {
     connection.query(sql, (err, results) => {
       if (err) {
+        console.log(error);
         response.sendStatus(500);
       } else {
+
         response
           .status(200)
           //.send({ status: 200, data: results });
@@ -166,7 +168,7 @@ app.get("/deleteBook", (request, response) => {
       if (err) {
         response.sendStatus(500, err);
       } else {
-        response.status(200).send({message: 'OK'});
+        response.status(200).send({ message: 'OK' });
       }
       connection.end();
     });
@@ -198,7 +200,7 @@ app.get("/searchTitle", (request, response) => {
           .status(200)
           //.send({ status: 200, data: results });
           .send(results);
-		  console.log(sql, results);
+        console.log(sql, results);
       }
       connection.end();
     });
@@ -232,7 +234,7 @@ app.get("/searchAuthor", (request, response) => {
           .status(200)
           //.send({ status: 200, data: results });
           .send(results);
-		  console.log(sql, results);
+        console.log(sql, results);
       }
       connection.end();
     });
@@ -266,7 +268,7 @@ app.get("/searchCategory", (request, response) => {
           .status(200)
           //.send({ status: 200, data: results });
           .send(results);
-		  console.log(sql, results);
+        console.log(sql, results);
       }
       connection.end();
     });
@@ -278,37 +280,133 @@ app.get("/searchCategory", (request, response) => {
 });
 
 
-
+// Issue book
 
 app.get("/issueBook", (request, response) => {
-  let sql = "INSERT INTO issues (book_id, user_email, status) VALUES (? , ?, 'ISSUED')";
   const connection = mysql.createConnection({
     host: "localhost",
     user: "root",
     password: "password",
     database: "library"
   });
-console.log(request.query.book_id , request.query.user_email);
   connection.connect(error => {
-    connection.query(sql, [request.query.book_id , request.query.user_email], (err, results) => {
+    const sql = "SELECT COUNT(id)  as  count FROM issues WHERE book_id = ? AND user_email= ? AND status = 'ISSUED'";
+    connection.query(sql, [request.query.book_id, request.query.user_email], (err, results) => {
       if (err) {
+        console.log('here 1');
         response.status(500).send(err);
-      } else {
-        response
-          .status(200)
-          .send(results);
+        connection.end();
       }
-      connection.end();
+      else {
+        if (results.pop().count > 0) { // this book was already issued to the user.
+          console.log('here 2');
+          response.status(200).send({ message: 'Already issued' });
+          connection.end();
+        } else {
+          const sql = "SELECT COUNT(id) as count FROM issues WHERE book_id = " + request.query.book_id + " AND (status = 'ISSUED' OR status = 'RENEWED')";
+          connection.query(sql, (issued_err, issued_result) => {
+            if (issued_err) {
+              console.log('here 3', issued_err);
+              response.status(500).send(issued_err);
+              connection.end();
+            }
+            else {
+              const sql = "SELECT copies FROM books WHERE id = ?";
+              connection.query(sql, [request.query.book_id], (copies_err, copies_result) => {
+                if (copies_err) {
+                  console.log('here 4', copies_err);
+                  response.status(500).send(copies_err);
+                  connection.end();
+                }
+                else {
+                  if (copies_result.pop().count > issued_result.pop.count) {
+                    let sql = "INSERT INTO issues (book_id, user_email, status) VALUES (? , ?, 'ISSUED')";
+                    connection.query(sql, [request.query.book_id, request.query.user_email], (insert_err, insert_id) => {
+                      if (insert_err) { response.status(500).send(insert_err); }
+                      else {
+                        response.status(200).send(insert_id);
+                        connection.end();
+                      }
+                    });
+                  } else {
+                    response.status(200).send({ message: 'No copies available' });
+                    connection.end();
+                  }
+                }
+              });
+            }
+          })
+        }
+      }
     });
-    if (error) {
-      response.sendStatus(500);
-    }
+    if (error) { response.sendStatus(500); }
   });
 });
 
 
+// Return book
 
 
+app.get("/returnBook", (request, response) => {
+  const connection = mysql.createConnection({
+    host: "localhost",
+    user: "root",
+    password: "password",
+    database: "library"
+  });
+  connection.connect(error => {
+    const sql = "SELECT COUNT(id)  as  count FROM issues WHERE book_id = ? AND user_email= ? AND status = 'ISSUED'";
+    connection.query(sql, [request.query.book_id, request.query.user_email], (err, results) => {
+      if (err) {
+        console.log('here 1');
+        response.status(500).send(err);
+        connection.end();
+      }
+      else {
+        if (results.pop().count > 0) { // this book was already issued to the user.
+          console.log('here 2');
+          response.status(200).send({ message: 'Already issued' });
+          connection.end();
+        } else {
+          const sql = "SELECT COUNT(id) as count FROM issues WHERE book_id = " + request.query.book_id + " AND (status = 'ISSUED' OR status = 'RENEWED')";
+          connection.query(sql, (issued_err, issued_result) => {
+            if (issued_err) {
+              console.log('here 3', issued_err);
+              response.status(500).send(issued_err);
+              connection.end();
+            }
+            else {
+              const sql = "SELECT copies FROM books WHERE id = ?";
+              connection.query(sql, [request.query.book_id], (copies_err, copies_result) => {
+                if (copies_err) {
+                  console.log('here 4', copies_err);
+                  response.status(500).send(copies_err);
+                  connection.end();
+                }
+                else {
+                  if (copies_result.pop().count > issued_result.pop.count) {
+                    let sql = "INSERT INTO issues (book_id, user_email, status) VALUES (? , ?, 'ISSUED')";
+                    connection.query(sql, [request.query.book_id, request.query.user_email], (insert_err, insert_id) => {
+                      if (insert_err) { response.status(500).send(insert_err); }
+                      else {
+                        response.status(200).send(insert_id);
+                        connection.end();
+                      }
+                    });
+                  } else {
+                    response.status(200).send({ message: 'No copies available' });
+                    connection.end();
+                  }
+                }
+              });
+            }
+          })
+        }
+      }
+    });
+    if (error) { response.sendStatus(500); }
+  });
+});
 
 
 //connection.end();
